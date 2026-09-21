@@ -6,13 +6,13 @@ import { createClient } from "@/lib/supabase/server";
 
 const PIN_REGEX = /^\d{4}$/;
 
-function mensajeError(contexto: string, error: { message: string; code?: string }): string {
-  // Cuando las funciones set_empleado_pin/verify_empleado_pin no existen aún en
-  // Supabase (falta correr supabase/add_pin.sql), Postgres regresa este código.
-  if (error.code === "PGRST202" || /function .* does not exist/i.test(error.message)) {
-    return "Falta configurar el PIN en la base de datos (falta correr add_pin.sql en Supabase). Avísale a Andy.";
-  }
-  return `${contexto}: ${error.message}`;
+type ErrorSupabase = { message: string; code?: string; details?: string | null; hint?: string | null };
+
+function mensajeError(contexto: string, error: ErrorSupabase): string {
+  const partes = [`código: ${error.code ?? "?"}`, `mensaje: ${error.message}`];
+  if (error.details) partes.push(`detalles: ${error.details}`);
+  if (error.hint) partes.push(`hint: ${error.hint}`);
+  return `${contexto} (${partes.join(" | ")})`;
 }
 
 export async function agregarEmpleado(formData: FormData) {
@@ -30,7 +30,7 @@ export async function agregarEmpleado(formData: FormData) {
     .single();
 
   if (error || !data) {
-    redirect("/dashboard/equipo?error=" + encodeURIComponent(mensajeError("No se pudo agregar al ingeniero", error ?? { message: "sin datos" })));
+    redirect("/dashboard/equipo?error=" + encodeURIComponent(mensajeError("No se pudo agregar al ingeniero", error ?? { message: "sin datos" } as ErrorSupabase)));
   }
 
   const { error: pinError } = await supabase.rpc("set_empleado_pin", { p_id: data.id, p_pin: pin });
