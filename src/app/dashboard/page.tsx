@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { ClipboardList, Clock, Gauge, AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
+import { ClipboardList, Clock, Gauge, AlertTriangle, ChevronLeft, ChevronRight, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getWeekRange, addDays, formatFechaLarga } from "@/lib/week";
 import type { Actividad, Categoria, Empleado } from "@/lib/types";
 import StatCard from "@/components/StatCard";
 import { EstatusBadge, PrioridadBadge } from "@/components/StatusBadge";
 import LogoutButton from "@/components/LogoutButton";
+import WeekPicker from "@/components/WeekPicker";
 
 export const dynamic = "force-dynamic";
 
@@ -80,7 +81,8 @@ export default async function DashboardPage({
             Semana del {formatFechaLarga(desde)} al {formatFechaLarga(hasta)}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <WeekPicker desde={desde} />
           <Link
             href={`/dashboard?desde=${addDays(desde, -7)}`}
             className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] bg-white text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)]"
@@ -98,6 +100,13 @@ export default async function DashboardPage({
             className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border)] bg-white text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)]"
           >
             <ChevronRight size={16} />
+          </Link>
+          <Link
+            href="/dashboard/equipo"
+            className="flex items-center gap-1.5 rounded-lg border border-[var(--border)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)]"
+          >
+            <Users size={14} />
+            Equipo
           </Link>
           <LogoutButton />
         </div>
