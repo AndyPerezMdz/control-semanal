@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { ClipboardList, Clock, Gauge, AlertTriangle, ChevronLeft, ChevronRight, Users } from "lucide-react";
+import { ClipboardList, Clock, Gauge, AlertTriangle, ChevronLeft, ChevronRight, Users, Download } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getWeekRange, addDays, formatFechaLarga } from "@/lib/week";
+import { calcularResumen } from "@/lib/reportes";
 import type { Actividad, Categoria, Empleado } from "@/lib/types";
 import StatCard from "@/components/StatCard";
 import { EstatusBadge, PrioridadBadge } from "@/components/StatusBadge";
@@ -36,41 +37,18 @@ export default async function DashboardPage({
   const empleados = (empleadosData ?? []) as Empleado[];
   const categorias = (categoriasData ?? []) as Categoria[];
 
-  const totalActividades = actividades.length;
-  const horasTotales = actividades.reduce((acc, a) => acc + (a.tiempo_min ?? 0), 0) / 60;
-  const cargaTotal = actividades.reduce((acc, a) => acc + (a.carga_ponderada ?? 0), 0);
-  const pendientes = actividades.filter((a) => a.estatus === "PENDIENTE" || a.estatus === "BLOQUEADO").length;
+  const { totalActividades, horasTotales, cargaTotal, pendientes, porEmpleado, porCategoria } =
+    calcularResumen(actividades, empleados, categorias);
 
-  const finalizadosSet = new Set(["FINALIZADO", "FINALIZADO / RESTABLECIDO"]);
-  const pendientesSet = new Set(["PENDIENTE", "BLOQUEADO"]);
-
-  const porEmpleado = empleados.map((emp) => {
-    const propias = actividades.filter((a) => a.empleado_id === emp.id);
-    const minutos = propias.reduce((acc, a) => acc + (a.tiempo_min ?? 0), 0);
-    return {
-      empleado: emp,
-      actividades: propias.length,
-      horas: minutos / 60,
-      carga: propias.reduce((acc, a) => acc + (a.carga_ponderada ?? 0), 0),
-      finalizadas: propias.filter((a) => finalizadosSet.has(a.estatus)).length,
-      pendientes: propias.filter((a) => pendientesSet.has(a.estatus)).length,
-      evidenciaFaltante: propias.filter((a) => a.evidencia === "NO").length,
-      promedioMin: propias.length > 0 ? minutos / propias.length : 0,
-    };
-  });
-
-  const porCategoria = categorias
-    .map((cat) => {
-      const propias = actividades.filter((a) => a.categoria_id === cat.id);
-      return {
-        categoria: cat,
-        numero: propias.length,
-        minutos: propias.reduce((acc, a) => acc + (a.tiempo_min ?? 0), 0),
-        carga: propias.reduce((acc, a) => acc + (a.carga_ponderada ?? 0), 0),
-      };
-    })
-    .filter((c) => c.numero > 0)
-    .sort((a, b) => b.numero - a.numero);
+  // El botón de "descargar semana" solo aparece para semanas ya cerradas, o
+  // para la semana en curso una vez que llega el fin de semana (viernes a
+  // domingo) — igual que como se revisaba en el Excel cada viernes.
+  const hoyStr = new Date().toISOString().slice(0, 10);
+  const esSemanaActual = hoyStr >= desde && hoyStr <= hasta;
+  const diaDeHoy = new Date().getDay(); // 0 = domingo, 5 = viernes, 6 = sábado
+  const esFinDeSemana = diaDeHoy === 5 || diaDeHoy === 6 || diaDeHoy === 0;
+  const mostrarDescargaSemana = hasta < hoyStr || (esSemanaActual && esFinDeSemana);
+  const fechaSugerida = esSemanaActual ? hoyStr : hasta;
 
   return (
     <main className="mx-auto min-h-screen max-w-5xl px-4 py-8">
@@ -111,6 +89,35 @@ export default async function DashboardPage({
           <LogoutButton />
         </div>
       </header>
+
+      <div className="mb-8 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--border)] bg-white px-3 py-2.5">
+        <span className="flex items-center gap-1.5 text-xs font-medium text-[var(--ink-secondary)]">
+          <Download size={14} />
+          Descargar Excel:
+        </span>
+        <form action="/dashboard/exportar/dia" method="GET" className="flex items-center gap-2">
+          <input
+            type="date"
+            name="fecha"
+            defaultValue={fechaSugerida}
+            className="rounded-lg border border-[var(--border)] bg-white px-2 py-1 text-xs text-[var(--ink-primary)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
+          />
+          <button
+            type="submit"
+            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)]"
+          >
+            Del día
+          </button>
+        </form>
+        {mostrarDescargaSemana && (
+          <a
+            href={`/dashboard/exportar/semana?desde=${desde}`}
+            className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)]"
+          >
+            De la semana ({formatFechaLarga(desde)} – {formatFechaLarga(hasta)})
+          </a>
+        )}
+      </div>
 
       <section className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard label="Actividades registradas" value={totalActividades} icon={ClipboardList} />
