@@ -1,10 +1,13 @@
 import Link from "next/link";
-import { ArrowLeft, UserPlus } from "lucide-react";
+import { ArrowLeft, UserPlus, KeyRound, AlertCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import type { Empleado } from "@/lib/types";
-import { agregarEmpleado, cambiarEstadoEmpleado } from "./actions";
+import { agregarEmpleado, cambiarEstadoEmpleado, establecerPin } from "./actions";
 
 export const dynamic = "force-dynamic";
+
+const inputClass =
+  "rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--ink-primary)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20";
 
 export default async function EquipoPage() {
   const supabase = await createClient();
@@ -23,18 +26,29 @@ export default async function EquipoPage() {
         <div>
           <h1 className="text-xl font-semibold text-[var(--ink-primary)]">Equipo</h1>
           <p className="mt-1 text-sm text-[var(--ink-secondary)]">
-            Altas y bajas de ingenieros. No se borran para no perder su historial — se desactivan.
+            Altas y bajas, y el PIN de 4 dígitos que cada quien usa para registrar sus actividades.
           </p>
         </div>
       </header>
 
-      <form action={agregarEmpleado} className="mb-6 flex gap-2">
+      <form action={agregarEmpleado} className="mb-6 flex flex-wrap gap-2">
         <input
           type="text"
           name="nombre"
           required
           placeholder="Nombre del nuevo ingeniero"
-          className="flex-1 rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--ink-primary)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20"
+          className={`flex-1 ${inputClass}`}
+        />
+        <input
+          type="password"
+          name="pin"
+          required
+          inputMode="numeric"
+          pattern="[0-9]{4}"
+          maxLength={4}
+          autoComplete="off"
+          placeholder="PIN (4 dígitos)"
+          className={`w-32 ${inputClass}`}
         />
         <button
           type="submit"
@@ -47,31 +61,61 @@ export default async function EquipoPage() {
 
       <div className="flex flex-col gap-2">
         {empleados.map((e) => (
-          <div
-            key={e.id}
-            className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-white p-3"
-          >
-            <span
-              className={
-                e.activo
-                  ? "text-sm font-medium text-[var(--ink-primary)]"
-                  : "text-sm font-medium text-[var(--ink-muted)] line-through"
-              }
-            >
-              {e.nombre}
-            </span>
-            <form action={cambiarEstadoEmpleado}>
+          <div key={e.id} className="rounded-xl border border-[var(--border)] bg-white p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span
+                  className={
+                    e.activo
+                      ? "text-sm font-medium text-[var(--ink-primary)]"
+                      : "text-sm font-medium text-[var(--ink-muted)] line-through"
+                  }
+                >
+                  {e.nombre}
+                </span>
+                {!e.pin_hash && (
+                  <span className="flex items-center gap-1 rounded-full bg-[var(--status-warning-bg)] px-2 py-0.5 text-xs font-medium text-[var(--status-warning)]">
+                    <AlertCircle size={12} />
+                    Sin PIN
+                  </span>
+                )}
+              </div>
+
+              <form action={cambiarEstadoEmpleado}>
+                <input type="hidden" name="id" value={e.id} />
+                <input type="hidden" name="activo" value={(!e.activo).toString()} />
+                <button
+                  type="submit"
+                  className={
+                    e.activo
+                      ? "rounded-lg border border-[var(--status-critical)]/30 bg-[var(--status-critical-bg)] px-3 py-1.5 text-xs font-medium text-[var(--status-critical)] hover:opacity-80"
+                      : "rounded-lg border border-[var(--status-good)]/30 bg-[var(--status-good-bg)] px-3 py-1.5 text-xs font-medium text-[var(--status-good)] hover:opacity-80"
+                  }
+                >
+                  {e.activo ? "Desactivar" : "Reactivar"}
+                </button>
+              </form>
+            </div>
+
+            <form action={establecerPin} className="mt-2 flex items-center gap-2">
               <input type="hidden" name="id" value={e.id} />
-              <input type="hidden" name="activo" value={(!e.activo).toString()} />
+              <KeyRound size={14} className="text-[var(--ink-muted)]" />
+              <input
+                type="password"
+                name="pin"
+                required
+                inputMode="numeric"
+                pattern="[0-9]{4}"
+                maxLength={4}
+                autoComplete="off"
+                placeholder="Nuevo PIN"
+                className={`w-28 py-1.5 text-xs ${inputClass}`}
+              />
               <button
                 type="submit"
-                className={
-                  e.activo
-                    ? "rounded-lg border border-[var(--status-critical)]/30 bg-[var(--status-critical-bg)] px-3 py-1.5 text-xs font-medium text-[var(--status-critical)] hover:opacity-80"
-                    : "rounded-lg border border-[var(--status-good)]/30 bg-[var(--status-good-bg)] px-3 py-1.5 text-xs font-medium text-[var(--status-good)] hover:opacity-80"
-                }
+                className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)]"
               >
-                {e.activo ? "Desactivar" : "Reactivar"}
+                {e.pin_hash ? "Cambiar PIN" : "Asignar PIN"}
               </button>
             </form>
           </div>

@@ -30,6 +30,7 @@ create table if not exists empleados (
   id uuid primary key default gen_random_uuid(),
   nombre text not null unique,
   activo boolean not null default true,
+  pin_hash text,  -- PIN de 4 dígitos (hasheado); ver funciones set/verify_empleado_pin abajo
   creado_en timestamptz not null default now()
 );
 
@@ -120,6 +121,46 @@ drop trigger if exists trg_calcular_carga on actividades;
 create trigger trg_calcular_carga
   before insert or update on actividades
   for each row execute function calcular_carga_actividad();
+
+-- ---------------------------------------------------------------------------
+-- PIN de 4 dígitos por ingeniero (trazabilidad de quién registra cada
+-- actividad, sin necesidad de cuentas/contraseñas completas)
+-- ---------------------------------------------------------------------------
+create or replace function set_empleado_pin(p_id uuid, p_pin text)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_pin !~ '^[0-9]{4}$' then
+    raise exception 'El PIN debe ser de 4 dígitos.';
+  end if;
+  update empleados set pin_hash = crypt(p_pin, gen_salt('bf')) where id = p_id;
+end;
+$$;
+
+create or replace function verify_empleado_pin(p_id uuid, p_pin text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_hash text;
+begin
+  select pin_hash into v_hash from empleados where id = p_id;
+  if v_hash is null then
+    return false;
+  end if;
+  return v_hash = crypt(p_pin, v_hash);
+end;
+$$;
+
+revoke all on function set_empleado_pin(uuid, text) from public;
+revoke all on function verify_empleado_pin(uuid, text) from public;
+grant execute on function set_empleado_pin(uuid, text) to authenticated;
+grant execute on function verify_empleado_pin(uuid, text) to anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Seguridad (RLS) — replica el modelo acordado:

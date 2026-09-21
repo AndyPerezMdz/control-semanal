@@ -78,6 +78,24 @@ export default function ActivityForm({
           </select>
         </div>
 
+        <div>
+          <label className={labelClass} htmlFor="pin">
+            Tu PIN (4 dígitos)
+          </label>
+          <input
+            type="password"
+            id="pin"
+            name="pin"
+            required
+            inputMode="numeric"
+            pattern="[0-9]{4}"
+            maxLength={4}
+            autoComplete="off"
+            placeholder="••••"
+            className={inputClass}
+          />
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={labelClass} htmlFor="fecha">

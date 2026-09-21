@@ -6,6 +6,7 @@ import { ESTATUS, EVIDENCIAS, PRIORIDADES } from "@/lib/types";
 
 const ActividadSchema = z.object({
   empleado_id: z.string().uuid({ message: "Elige tu nombre." }),
+  pin: z.string().regex(/^\d{4}$/, "El PIN debe ser de 4 dígitos."),
   categoria_id: z.string().uuid({ message: "Elige una categoría." }),
   fecha: z.string().min(1, "Falta la fecha."),
   hora_inicio: z.string().optional().or(z.literal("")),
@@ -37,6 +38,15 @@ export async function registrarActividad(
 
   const data = parsed.data;
   const supabase = await createClient();
+
+  const { data: pinValido, error: pinError } = await supabase.rpc("verify_empleado_pin", {
+    p_id: data.empleado_id,
+    p_pin: data.pin,
+  });
+
+  if (pinError || !pinValido) {
+    return { ok: false, error: "PIN incorrecto. Pídele a tu jefe que te lo confirme o te asigne uno." };
+  }
 
   const { error } = await supabase.from("actividades").insert({
     empleado_id: data.empleado_id,
