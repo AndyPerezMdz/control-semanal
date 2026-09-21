@@ -10,7 +10,7 @@ create or replace function set_empleado_pin(p_id uuid, p_pin text)
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 begin
   if p_pin !~ '^[0-9]{4}$' then
@@ -26,7 +26,7 @@ create or replace function verify_empleado_pin(p_id uuid, p_pin text)
 returns boolean
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   v_hash text;
