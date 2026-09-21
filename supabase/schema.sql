@@ -30,7 +30,7 @@ create table if not exists empleados (
   id uuid primary key default gen_random_uuid(),
   nombre text not null unique,
   activo boolean not null default true,
-  pin_hash text,  -- PIN de 4 dígitos (hasheado); ver funciones set/verify_empleado_pin abajo
+  pin_cifrado bytea,  -- PIN de 4 dígitos (cifrado, reversible); ver funciones set/verify/obtener_pin abajo
   creado_en timestamptz not null default now()
 );
 
@@ -130,13 +130,15 @@ create or replace function set_empleado_pin(p_id uuid, p_pin text)
 returns void
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 begin
   if p_pin !~ '^[0-9]{4}$' then
     raise exception 'El PIN debe ser de 4 dígitos.';
   end if;
-  update empleados set pin_hash = crypt(p_pin, gen_salt('bf')) where id = p_id;
+  update empleados
+  set pin_cifrado = pgp_sym_encrypt(p_pin, 'control-semanal-pin-2026')
+  where id = p_id;
 end;
 $$;
 
@@ -144,23 +146,42 @@ create or replace function verify_empleado_pin(p_id uuid, p_pin text)
 returns boolean
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
-  v_hash text;
+  v_cifrado bytea;
 begin
-  select pin_hash into v_hash from empleados where id = p_id;
-  if v_hash is null then
+  select pin_cifrado into v_cifrado from empleados where id = p_id;
+  if v_cifrado is null then
     return false;
   end if;
-  return v_hash = crypt(p_pin, v_hash);
+  return pgp_sym_decrypt(v_cifrado, 'control-semanal-pin-2026') = p_pin;
+end;
+$$;
+
+-- Regresa el PIN en claro de cada empleado — solo para el dashboard admin
+create or replace function obtener_pines()
+returns table(empleado_id uuid, pin text)
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  return query
+  select e.id,
+         case when e.pin_cifrado is null then null
+              else pgp_sym_decrypt(e.pin_cifrado, 'control-semanal-pin-2026')
+         end
+  from empleados e;
 end;
 $$;
 
 revoke all on function set_empleado_pin(uuid, text) from public;
 revoke all on function verify_empleado_pin(uuid, text) from public;
+revoke all on function obtener_pines() from public;
 grant execute on function set_empleado_pin(uuid, text) to authenticated;
 grant execute on function verify_empleado_pin(uuid, text) to anon, authenticated;
+grant execute on function obtener_pines() to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Seguridad (RLS) — replica el modelo acordado:

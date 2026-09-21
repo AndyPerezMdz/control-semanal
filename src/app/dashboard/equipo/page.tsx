@@ -9,6 +9,8 @@ export const dynamic = "force-dynamic";
 const inputClass =
   "rounded-lg border border-[var(--border)] bg-white px-3 py-2 text-sm text-[var(--ink-primary)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20";
 
+type PinFila = { empleado_id: string; pin: string | null };
+
 export default async function EquipoPage({
   searchParams,
 }: {
@@ -16,8 +18,14 @@ export default async function EquipoPage({
 }) {
   const { error: errorParam } = await searchParams;
   const supabase = await createClient();
-  const { data } = await supabase.from("empleados").select("*").order("nombre");
-  const empleados = (data ?? []) as Empleado[];
+
+  const [{ data }, { data: pinesData }] = await Promise.all([
+    supabase.from("empleados").select("id, nombre, activo").order("nombre"),
+    supabase.rpc("obtener_pines"),
+  ]);
+
+  const pines = new Map((pinesData as PinFila[] | null ?? []).map((f) => [f.empleado_id, f.pin]));
+  const empleados = ((data ?? []) as Empleado[]).map((e) => ({ ...e, pin: pines.get(e.id) ?? null }));
 
   return (
     <main className="mx-auto min-h-screen max-w-2xl px-4 py-8">
@@ -84,7 +92,12 @@ export default async function EquipoPage({
                 >
                   {e.nombre}
                 </span>
-                {!e.pin_hash && (
+                {e.pin ? (
+                  <span className="flex items-center gap-1 rounded-full bg-[var(--surface-muted)] px-2 py-0.5 font-mono text-xs font-medium text-[var(--ink-secondary)]">
+                    <KeyRound size={12} />
+                    {e.pin}
+                  </span>
+                ) : (
                   <span className="flex items-center gap-1 rounded-full bg-[var(--status-warning-bg)] px-2 py-0.5 text-xs font-medium text-[var(--status-warning)]">
                     <AlertCircle size={12} />
                     Sin PIN
@@ -126,7 +139,7 @@ export default async function EquipoPage({
                 type="submit"
                 className="rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--ink-secondary)] hover:bg-[var(--surface-muted)]"
               >
-                {e.pin_hash ? "Cambiar PIN" : "Asignar PIN"}
+                {e.pin ? "Cambiar PIN" : "Asignar PIN"}
               </button>
             </form>
           </div>

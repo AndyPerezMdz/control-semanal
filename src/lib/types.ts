@@ -38,7 +38,7 @@ export interface Empleado {
   id: string;
   nombre: string;
   activo: boolean;
-  pin_hash?: string | null;
+  pin?: string | null;
 }
 
 export interface Actividad {
