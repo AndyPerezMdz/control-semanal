@@ -8,8 +8,12 @@ export default async function RegistroPage() {
   const supabase = await createClient();
 
   const [{ data: empleados }, { data: categorias }] = await Promise.all([
-    supabase.from("empleados").select("id, nombre, activo").order("nombre"),
-    supabase.from("categorias").select("*").order("orden"),
+    supabase
+      .from("empleados")
+      .select("id, nombre, activo")
+      .eq("activo", true)
+      .order("nombre"),
+    supabase.from("categorias").select("*").eq("activo", true).order("orden"),
   ]);
 
   return (
