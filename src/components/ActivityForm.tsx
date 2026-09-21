@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
 import { CheckCircle2, AlertCircle } from "lucide-react";
 import { registrarActividad, type RegistrarActividadState } from "@/app/registro/actions";
-import { ESTATUS, EVIDENCIAS, PRIORIDADES, type Categoria, type Empleado } from "@/lib/types";
+import { ESTATUS, EVIDENCIAS, PRIORIDADES, type Categoria } from "@/lib/types";
 
 const initialState: RegistrarActividadState = { ok: false };
 
@@ -30,13 +30,7 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export default function ActivityForm({
-  empleados,
-  categorias,
-}: {
-  empleados: Empleado[];
-  categorias: Categoria[];
-}) {
+export default function ActivityForm({ categorias }: { categorias: Categoria[] }) {
   const [state, formAction] = useActionState(registrarActividad, initialState);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -62,40 +56,6 @@ export default function ActivityForm({
       )}
 
       <form ref={formRef} action={formAction} className="flex flex-col gap-4">
-        <div>
-          <label className={labelClass} htmlFor="empleado_id">
-            Tu nombre
-          </label>
-          <select id="empleado_id" name="empleado_id" required defaultValue="" className={inputClass}>
-            <option value="" disabled>
-              Selecciona tu nombre
-            </option>
-            {empleados.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.nombre}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className={labelClass} htmlFor="pin">
-            Tu PIN (4 dígitos)
-          </label>
-          <input
-            type="password"
-            id="pin"
-            name="pin"
-            required
-            inputMode="numeric"
-            pattern="[0-9]{4}"
-            maxLength={4}
-            autoComplete="off"
-            placeholder="••••"
-            className={inputClass}
-          />
-        </div>
-
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className={labelClass} htmlFor="fecha">

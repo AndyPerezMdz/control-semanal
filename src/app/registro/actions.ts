@@ -1,12 +1,69 @@
 "use server";
 
 import { z } from "zod";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { ESTATUS, EVIDENCIAS, PRIORIDADES } from "@/lib/types";
+import {
+  crearTokenSesion,
+  verificarTokenSesion,
+  SESSION_COOKIE,
+  SESSION_MAX_AGE_SEG,
+} from "@/lib/session";
 
-const ActividadSchema = z.object({
+// --------------------------------------------------------------------------
+// Login del ingeniero: nombre + PIN una sola vez, deja una sesión de 8 horas
+// --------------------------------------------------------------------------
+const LoginSchema = z.object({
   empleado_id: z.string().uuid({ message: "Elige tu nombre." }),
   pin: z.string().regex(/^\d{4}$/, "El PIN debe ser de 4 dígitos."),
+});
+
+export type LoginIngenieroState = { error?: string };
+
+export async function iniciarSesionIngeniero(
+  _prevState: LoginIngenieroState,
+  formData: FormData
+): Promise<LoginIngenieroState> {
+  const parsed = LoginSchema.safeParse(Object.fromEntries(formData.entries()));
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Revisa el formulario." };
+  }
+
+  const supabase = await createClient();
+  const { data: pinValido, error } = await supabase.rpc("verify_empleado_pin", {
+    p_id: parsed.data.empleado_id,
+    p_pin: parsed.data.pin,
+  });
+
+  if (error || !pinValido) {
+    return { error: "Nombre o PIN incorrecto." };
+  }
+
+  const cookieStore = await cookies();
+  cookieStore.set(SESSION_COOKIE, crearTokenSesion(parsed.data.empleado_id), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: SESSION_MAX_AGE_SEG,
+    path: "/",
+  });
+
+  redirect("/registro");
+}
+
+export async function cerrarSesionIngeniero() {
+  const cookieStore = await cookies();
+  cookieStore.delete(SESSION_COOKIE);
+  redirect("/registro");
+}
+
+// --------------------------------------------------------------------------
+// Registrar una actividad: el empleado_id sale de la sesión, no del form —
+// así nadie puede editar el HTML/form para registrar "como" otra persona.
+// --------------------------------------------------------------------------
+const ActividadSchema = z.object({
   categoria_id: z.string().uuid({ message: "Elige una categoría." }),
   fecha: z.string().min(1, "Falta la fecha."),
   hora_inicio: z.string().optional().or(z.literal("")),
@@ -29,6 +86,13 @@ export async function registrarActividad(
   _prevState: RegistrarActividadState,
   formData: FormData
 ): Promise<RegistrarActividadState> {
+  const cookieStore = await cookies();
+  const empleadoId = verificarTokenSesion(cookieStore.get(SESSION_COOKIE)?.value);
+
+  if (!empleadoId) {
+    return { ok: false, error: "Tu sesión expiró. Vuelve a poner tu nombre y PIN." };
+  }
+
   const raw = Object.fromEntries(formData.entries());
   const parsed = ActividadSchema.safeParse(raw);
 
@@ -39,17 +103,8 @@ export async function registrarActividad(
   const data = parsed.data;
   const supabase = await createClient();
 
-  const { data: pinValido, error: pinError } = await supabase.rpc("verify_empleado_pin", {
-    p_id: data.empleado_id,
-    p_pin: data.pin,
-  });
-
-  if (pinError || !pinValido) {
-    return { ok: false, error: "PIN incorrecto. Pídele a tu jefe que te lo confirme o te asigne uno." };
-  }
-
   const { error } = await supabase.from("actividades").insert({
-    empleado_id: data.empleado_id,
+    empleado_id: empleadoId,
     categoria_id: data.categoria_id,
     fecha: data.fecha,
     hora_inicio: data.hora_inicio || null,
